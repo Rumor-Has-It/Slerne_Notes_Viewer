@@ -1,0 +1,10 @@
+## Interface: 120001
+## Title: Slerne Notes Viewer
+## Notes: View exported raid assignments sent from Slerne Notes
+## Author: Slerne
+## Version: 1.0.0
+## SavedVariables: SlerneNotesViewerDB
+
+ViewerCore.lua
+ViewerUI.lua
+ViewerRenderer.lua
