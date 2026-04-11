@@ -3,6 +3,7 @@ local frame = SlerneNotesViewer.frame
 
 frame:SetSize(1600, 950)
 frame:SetPoint("CENTER")
+frame:SetFrameStrata("FULLSCREEN_DIALOG") -- Forces the viewer to the top layer
 frame:EnableMouse(true)
 frame:SetMovable(true)
 frame:RegisterForDrag("LeftButton")
