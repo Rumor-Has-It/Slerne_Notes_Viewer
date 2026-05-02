@@ -30,17 +30,21 @@ end
 function SlerneNotesViewer.ParseImportString(str)
     local layout = {}
     local classMap = {}
+    local roleMap = {}
     local modules = {strsplit(";", str)}
     
     for _, modStr in ipairs(modules) do
         if modStr and modStr ~= "" then
-            local modName, mType, mLen, mImg, mImgW, mImgH, mText, mLabels, mPlayers, mClasses = strsplit(":", modStr)
+            -- Updated to include mPosX and mPosY at the end of the split
+            local modName, mType, mLen, mImg, mImgW, mImgH, mText, mLabels, mPlayers, mClasses, mRoles, mPosX, mPosY = strsplit(":", modStr)
             modName = Unescape(modName)
             
             local meta = {
                 type = Unescape(mType), length = tonumber(Unescape(mLen)) or 0,
                 image = Unescape(mImg), imgW = tonumber(Unescape(mImgW)) or 400,
                 imgH = tonumber(Unescape(mImgH)) or 300, text = Unescape(mText),
+                posX = tonumber(Unescape(mPosX)), -- Extract shared X position
+                posY = tonumber(Unescape(mPosY)), -- Extract shared Y position
                 labels = {}
             }
             
@@ -69,15 +73,24 @@ function SlerneNotesViewer.ParseImportString(str)
                     classMap[Unescape(name)] = Unescape(class)
                 end
             end
+            
+            if mRoles and mRoles ~= "" then
+                for _, rls in ipairs({strsplit(",", mRoles)}) do
+                    local name, role = strsplit("=", rls)
+                    roleMap[Unescape(name)] = Unescape(role)
+                end
+            end
 
             layout[modName] = { meta = meta, players = players }
         end
     end
-    return layout, classMap
+    return layout, classMap, roleMap
 end
 
 SlerneNotesViewer.currentLayout = {}
 SlerneNotesViewer.currentClasses = {}
+SlerneNotesViewer.currentRoles = {}
+SlerneNotesViewer.roster = {}
 
 SlerneNotesViewer.frame = CreateFrame("Frame", "SlerneNotesViewerFrame", UIParent)
 
@@ -86,13 +99,38 @@ local chunks = {}
 
 SlerneNotesViewer.frame:RegisterEvent("ADDON_LOADED")
 SlerneNotesViewer.frame:RegisterEvent("CHAT_MSG_ADDON")
+SlerneNotesViewer.frame:RegisterEvent("GROUP_ROSTER_UPDATE")
+
+local function UpdateRoster()
+    wipe(SlerneNotesViewer.roster)
+    local numGroup = GetNumGroupMembers()
+    if numGroup == 0 then
+        local name = UnitName("player")
+        if name then
+            local shortName = strsplit("-", name)
+            local _, classToken = UnitClass("player")
+            SlerneNotesViewer.roster[shortName] = classToken
+        end
+    else
+        for i = 1, numGroup do
+            local name, _, _, _, _, classToken = GetRaidRosterInfo(i)
+            if name then
+                local shortName = strsplit("-", name)
+                SlerneNotesViewer.roster[shortName] = classToken
+            end
+        end
+    end
+end
 
 SlerneNotesViewer.frame:SetScript("OnEvent", function(self, event, ...)
     if event == "ADDON_LOADED" then
         local arg1 = ...
         if arg1 == "Slerne_Notes_Viewer" then 
+            UpdateRoster()
             print("Slerne Notes Viewer loaded. Listening for canvas broadcasts.") 
         end
+    elseif event == "GROUP_ROSTER_UPDATE" then
+        UpdateRoster()
     elseif event == "CHAT_MSG_ADDON" then
         local prefix, text, channel, sender = ...
         if prefix == "SlerneNotes" then
@@ -106,7 +144,6 @@ SlerneNotesViewer.frame:SetScript("OnEvent", function(self, event, ...)
             if not chunks[msgID] then chunks[msgID] = {} end
             chunks[msgID][chunkNum] = data
             
-            -- Check if complete
             local isComplete = true
             for i = 1, totalChunks do
                 if not chunks[msgID][i] then isComplete = false; break end
@@ -117,10 +154,10 @@ SlerneNotesViewer.frame:SetScript("OnEvent", function(self, event, ...)
                 for i = 1, totalChunks do
                     fullStr = fullStr .. chunks[msgID][i]
                 end
-                chunks[msgID] = nil -- Free memory
+                chunks[msgID] = nil 
                 
                 local canvasName, layoutStr = strsplit("|", fullStr, 2)
-                SlerneNotesViewer.currentLayout, SlerneNotesViewer.currentClasses = SlerneNotesViewer.ParseImportString(layoutStr)
+                SlerneNotesViewer.currentLayout, SlerneNotesViewer.currentClasses, SlerneNotesViewer.currentRoles = SlerneNotesViewer.ParseImportString(layoutStr)
                 if SlerneNotesViewer.UpdateHeader then SlerneNotesViewer.UpdateHeader(canvasName) end
                 SlerneNotesViewer.Render()
                 
