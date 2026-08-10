@@ -1,8 +1,8 @@
-## Interface: 120007
+## Interface: 120007, 120100
 ## Title: Slerne Notes Viewer
 ## Notes: View exported raid assignments sent from Slerne Notes
 ## Author: Slerne
-## Version: 0.9.2
+## Version: 1.0.0
 ## X-License: MIT
 ## X-Credits: Custom art by Tado (instagram.com/tadogram). Secret easter egg art by Taco.
 ## IconTexture: Interface\AddOns\SlerneNotesViewer\img\theme\LogoMinimap
