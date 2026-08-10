@@ -96,9 +96,15 @@ end
 
 local function HexToRGB(hex)
     hex = hex or "ffffff"
+    local a = 1
+    if #hex == 8 then
+        a = (tonumber(hex:sub(1, 2), 16) or 255) / 255
+        hex = hex:sub(3)
+    end
     return (tonumber(hex:sub(1, 2), 16) or 255) / 255,
         (tonumber(hex:sub(3, 4), 16) or 255) / 255,
-        (tonumber(hex:sub(5, 6), 16) or 255) / 255
+        (tonumber(hex:sub(5, 6), 16) or 255) / 255,
+        a
 end
 
 function SlerneNotesViewer.ParseDrawings(str)
@@ -110,14 +116,16 @@ function SlerneNotesViewer.ParseDrawings(str)
         for _, strokeStr in ipairs({ strsplit(";", strokesPart) }) do
             if strokeStr ~= "" then
                 local parts = { strsplit(":", strokeStr) }
-                local r, g, b = HexToRGB(parts[1])
+                local head, thick = strsplit(",", parts[1])
+                local r, g, b, a = HexToRGB(head)
                 local points = {}
                 for i = 2, #parts do
                     local xs, ys = strsplit(",", parts[i])
                     points[#points + 1] = { tonumber(xs) or 0, tonumber(ys) or 0 }
                 end
                 if #points >= 2 then
-                    drawings.strokes[#drawings.strokes + 1] = { color = { r, g, b }, points = points }
+                    drawings.strokes[#drawings.strokes + 1] =
+                        { color = { r, g, b }, points = points, thickness = tonumber(thick) or 3, alpha = a }
                 end
             end
         end
@@ -126,12 +134,13 @@ function SlerneNotesViewer.ParseDrawings(str)
     if markersPart and markersPart ~= "" then
         for _, markerStr in ipairs({ strsplit(";", markersPart) }) do
             if markerStr ~= "" then
-                local a, b, c, d, e = strsplit(",", markerStr, 5)
+                local a, b, c, d, e, f = strsplit(",", markerStr, 6)
                 if tonumber(a) == nil then
 
                     local icon = (a == "marker") and (tonumber(b) or 8) or b
                     drawings.markers[#drawings.markers + 1] =
-                        { kind = a, icon = icon, x = tonumber(c) or 0, y = tonumber(d) or 0, size = tonumber(e) or 26 }
+                        { kind = a, icon = icon, x = tonumber(c) or 0, y = tonumber(d) or 0, size = tonumber(e) or 26,
+                          alpha = (tonumber(f) or 100) / 100 }
                 else
 
                     drawings.markers[#drawings.markers + 1] =
@@ -145,10 +154,10 @@ function SlerneNotesViewer.ParseDrawings(str)
         for _, ts in ipairs({ strsplit(";", textsPart) }) do
             if ts ~= "" then
                 local hex, x, y, size, text = strsplit(",", ts, 5)
-                local r, g, b = HexToRGB(hex)
+                local r, g, b, a = HexToRGB(hex)
                 drawings.texts[#drawings.texts + 1] =
                     { color = { r, g, b }, x = tonumber(x) or 0, y = tonumber(y) or 0,
-                      size = tonumber(size) or 22, text = UnescDraw(text) }
+                      size = tonumber(size) or 22, text = UnescDraw(text), alpha = a }
             end
         end
     end
@@ -156,10 +165,11 @@ function SlerneNotesViewer.ParseDrawings(str)
     if shapesPart and shapesPart ~= "" then
         for _, ss in ipairs({ strsplit(";", shapesPart) }) do
             if ss ~= "" then
-                local hex, x, y, size = strsplit(",", ss)
+                local hex, x, y, size, alpha = strsplit(",", ss)
                 local r, g, b = HexToRGB(hex)
                 drawings.shapes[#drawings.shapes + 1] =
-                    { color = { r, g, b }, x = tonumber(x) or 0, y = tonumber(y) or 0, size = tonumber(size) or 80 }
+                    { color = { r, g, b }, x = tonumber(x) or 0, y = tonumber(y) or 0, size = tonumber(size) or 80,
+                      alpha = (tonumber(alpha) or 100) / 100 }
             end
         end
     end
@@ -167,12 +177,12 @@ function SlerneNotesViewer.ParseDrawings(str)
     if linesPart and linesPart ~= "" then
         for _, ls in ipairs({ strsplit(";", linesPart) }) do
             if ls ~= "" then
-                local hex, x1, y1, x2, y2, th, arrow = strsplit(",", ls)
+                local hex, x1, y1, x2, y2, th, arrow, alpha = strsplit(",", ls)
                 local r, g, b = HexToRGB(hex)
                 drawings.lines[#drawings.lines + 1] =
                     { color = { r, g, b }, x1 = tonumber(x1) or 0, y1 = tonumber(y1) or 0,
                       x2 = tonumber(x2) or 0, y2 = tonumber(y2) or 0, thickness = tonumber(th) or 3,
-                      arrow = (arrow == "1") }
+                      arrow = (arrow == "1"), alpha = (tonumber(alpha) or 100) / 100 }
             end
         end
     end
@@ -224,6 +234,36 @@ function SlerneNotesViewer.StoreCanvas(name, pages)
     local prev = SlerneNotesViewerDB.canvases[name]
     local keepPage = (prev and prev.activePage and prev.activePage <= #pages) and prev.activePage or 1
     SlerneNotesViewerDB.canvases[name] = { pages = pages, activePage = keepPage }
+
+    local ls = SlerneNotesViewerDB.localStrokes and SlerneNotesViewerDB.localStrokes[name]
+    if ls then
+        for p in pairs(ls) do
+            if type(p) ~= "number" or p > #pages then ls[p] = nil end
+        end
+    end
+end
+
+function SlerneNotesViewer.GetLocalStrokes(create)
+    local name = SlerneNotesViewer.GetActiveCanvas()
+    if not name then return nil end
+    local db = SlerneNotesViewerDB
+    if not db.localStrokes then
+        if not create then return nil end
+        db.localStrokes = {}
+    end
+    local perCanvas = db.localStrokes[name]
+    if not perCanvas then
+        if not create then return nil end
+        perCanvas = {}
+        db.localStrokes[name] = perCanvas
+    end
+    local page = SlerneNotesViewer.GetActivePage()
+    local list = perCanvas[page]
+    if not list and create then
+        list = {}
+        perCanvas[page] = list
+    end
+    return list
 end
 
 function SlerneNotesViewer.GetPageCount(name)
@@ -262,6 +302,9 @@ end
 function SlerneNotesViewer.DeleteCanvas(name)
     if SlerneNotesViewerDB and SlerneNotesViewerDB.canvases then
         SlerneNotesViewerDB.canvases[name] = nil
+        if SlerneNotesViewerDB.localStrokes then
+            SlerneNotesViewerDB.localStrokes[name] = nil
+        end
         if SlerneNotesViewerDB.activeCanvas == name then
             SlerneNotesViewerDB.activeCanvas = next(SlerneNotesViewerDB.canvases)
         end

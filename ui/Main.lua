@@ -1,7 +1,7 @@
 local addonName, SlerneNotesViewer = ...
 local frame = SlerneNotesViewer.frame
 
-frame:SetSize(1600, 950)
+frame:SetSize(1540, 1002)
 frame:SetPoint("CENTER")
 frame:SetFrameStrata("FULLSCREEN_DIALOG")
 frame:EnableMouse(true)
@@ -28,12 +28,12 @@ local btnNotes = CreateFrame("Button", nil, tabBar, "UIPanelButtonTemplate")
 btnNotes:SetSize(108, 54); btnNotes:SetPoint("TOPRIGHT", tabBar, "TOPRIGHT", 22, -16)
 btnNotes:SetText("Notes")
 
-local btnConfig = CreateFrame("Button", nil, tabBar, "UIPanelButtonTemplate")
-btnConfig:SetSize(108, 54); btnConfig:SetPoint("TOPRIGHT", btnNotes, "BOTTOMRIGHT", 0, -10)
-btnConfig:SetText("Config")
+local btnSettings = CreateFrame("Button", nil, tabBar, "UIPanelButtonTemplate")
+btnSettings:SetSize(108, 54); btnSettings:SetPoint("TOPRIGHT", btnNotes, "BOTTOMRIGHT", 0, -10)
+btnSettings:SetText("Settings")
 
 SlerneNotesViewer.Skin.FolderTab(btnNotes)
-SlerneNotesViewer.Skin.FolderTab(btnConfig)
+SlerneNotesViewer.Skin.FolderTab(btnSettings)
 
 local CONTENT_INSET = 22
 local CONTENT_LEVEL = frame:GetFrameLevel() + 15
@@ -43,11 +43,13 @@ notesTab:SetPoint("TOPLEFT", bg, "TOPLEFT", CONTENT_INSET, -CONTENT_INSET)
 notesTab:SetPoint("BOTTOMRIGHT", bg, "BOTTOMRIGHT", -CONTENT_INSET, CONTENT_INSET)
 notesTab:SetFrameLevel(CONTENT_LEVEL)
 
-local configTab = CreateFrame("Frame", nil, frame)
-configTab:SetPoint("TOPLEFT", bg, "TOPLEFT", CONTENT_INSET, -CONTENT_INSET)
-configTab:SetPoint("BOTTOMRIGHT", bg, "BOTTOMRIGHT", -CONTENT_INSET, CONTENT_INSET)
-configTab:SetFrameLevel(CONTENT_LEVEL)
-configTab:Hide()
+local settingsTab = CreateFrame("Frame", nil, frame)
+settingsTab:SetPoint("TOPLEFT", bg, "TOPLEFT", CONTENT_INSET, -CONTENT_INSET)
+settingsTab:SetPoint("BOTTOMRIGHT", bg, "BOTTOMRIGHT", -CONTENT_INSET, CONTENT_INSET)
+settingsTab:SetFrameLevel(CONTENT_LEVEL)
+settingsTab:Hide()
+
+SlerneNotesViewer.Skin.AttachSecret(bg, function() return settingsTab:IsShown() end)
 
 local header = CreateFrame("Frame", nil, notesTab, "BackdropTemplate")
 header:SetHeight(42)
@@ -139,6 +141,9 @@ delBtn:SetScript("OnClick", function()
 end)
 SlerneNotesViewer.Skin.Button(delBtn)
 
+SlerneNotesViewer.header = header
+SlerneNotesViewer.headerDeleteBtn = delBtn
+
 SlerneNotesViewer.canvasPanel = CreateFrame("Frame", nil, notesTab)
 SlerneNotesViewer.canvasPanel:SetPoint("TOPLEFT", header, "BOTTOMLEFT", 0, -10)
 SlerneNotesViewer.canvasPanel:SetPoint("BOTTOMRIGHT", notesTab, "BOTTOMRIGHT", 0, 0)
@@ -165,7 +170,7 @@ local function MakeThemeDropdown(parent, getKey, setKey)
     return dd
 end
 
-local themePanel = CreateFrame("Frame", nil, configTab, "BackdropTemplate")
+local themePanel = CreateFrame("Frame", nil, settingsTab, "BackdropTemplate")
 themePanel:SetSize(440, 220)
 themePanel:SetPoint("TOPLEFT", 20, -20)
 SlerneNotesViewer.Skin.Panel(themePanel)
@@ -198,7 +203,7 @@ local sampleTitle = themePanel:CreateFontString(nil, "OVERLAY", "GameFontNormalL
 sampleTitle:SetPoint("TOP", sampleBtn, "BOTTOM", 0, -14); sampleTitle:SetText("Sample Title")
 SlerneNotesViewer.Skin.Title(sampleTitle)
 
-local mmPanel = CreateFrame("Frame", nil, configTab, "BackdropTemplate")
+local mmPanel = CreateFrame("Frame", nil, settingsTab, "BackdropTemplate")
 mmPanel:SetSize(300, 220)
 mmPanel:SetPoint("TOPLEFT", themePanel, "TOPRIGHT", 20, 0)
 SlerneNotesViewer.Skin.Panel(mmPanel)
@@ -218,11 +223,11 @@ mmCheck:SetScript("OnClick", function(self)
     if SlerneNotesViewer.SetMinimapHidden then SlerneNotesViewer.SetMinimapHidden(self:GetChecked()) end
 end)
 
-local function RefreshConfigControls()
+local function RefreshSettingsControls()
     if SlerneNotesViewer.IsMinimapHidden then mmCheck:SetChecked(SlerneNotesViewer.IsMinimapHidden()) end
 end
 
-SlerneNotesViewer.tabs = { btnNotes, btnConfig }
+SlerneNotesViewer.tabs = { btnNotes, btnSettings }
 local function SetActiveTab(active)
     for _, t in ipairs(SlerneNotesViewer.tabs) do
         SlerneNotesViewer.Skin.SetFolderTabActive(t, t == active)
@@ -230,12 +235,12 @@ local function SetActiveTab(active)
 end
 local function ShowOnly(which)
     notesTab:SetShown(which == "notes")
-    configTab:SetShown(which == "config")
+    settingsTab:SetShown(which == "settings")
     SlerneNotesViewer.activeViewTab = which
     if SlerneNotesViewer.RefreshPageTabs then SlerneNotesViewer.RefreshPageTabs() end
 end
 btnNotes:SetScript("OnClick", function() ShowOnly("notes"); SetActiveTab(btnNotes) end)
-btnConfig:SetScript("OnClick", function() ShowOnly("config"); SetActiveTab(btnConfig); RefreshConfigControls() end)
+btnSettings:SetScript("OnClick", function() ShowOnly("settings"); SetActiveTab(btnSettings); RefreshSettingsControls() end)
 
 local pageTabPool = {}
 local PAGE_TAB_W, PAGE_TAB_H, PAGE_TAB_STEP = 30, 37, 34
@@ -253,12 +258,14 @@ end
 
 function SlerneNotesViewer.RefreshPageTabs()
     for _, t in ipairs(pageTabPool) do t:Hide() end
-    if SlerneNotesViewer.activeViewTab == "config" then return end
+    if SlerneNotesViewer.activeViewTab == "settings" then return end
     local count = SlerneNotesViewer.GetPageCount()
     local active = SlerneNotesViewer.GetActivePage()
     for p = 1, count do
         local t = getViewerPageTab(p)
         t:SetText(tostring(p))
+        local fs = t:GetFontString()
+        if fs then fs:SetPoint("CENTER", t, "CENTER", p == 1 and -1 or 0, 4) end
         t:SetScript("OnClick", function() SlerneNotesViewer.SetActivePage(p) end)
         t:ClearAllPoints()
         t:SetPoint("BOTTOMLEFT", bg, "TOPLEFT", 16 + (p - 1) * PAGE_TAB_STEP, -13)
