@@ -67,17 +67,39 @@ canvasDropdown:SetPoint("LEFT", lbl, "RIGHT", 12, 0)
 canvasDropdown:SetWidth(260)
 canvasDropdown:SetupMenu(function(dropdown, root)
     local canvases = (SlerneNotesViewer.GetCanvases and SlerneNotesViewer.GetCanvases()) or {}
-    local names = {}
-    for name in pairs(canvases) do table.insert(names, name) end
-    table.sort(names)
-    if #names == 0 then
+    local live, archived = {}, {}
+    for name in pairs(canvases) do
+        if SlerneNotesViewer.IsCanvasArchived(name) then
+            table.insert(archived, name)
+        else
+            table.insert(live, name)
+        end
+    end
+    table.sort(live)
+    table.sort(archived)
+
+    if #live == 0 and #archived == 0 then
         root:CreateButton("(no canvases received yet)", function() end)
         return
     end
-    for _, name in ipairs(names) do
+
+    local function isActive(name)
+        return name == (SlerneNotesViewer.GetActiveCanvas and SlerneNotesViewer.GetActiveCanvas())
+    end
+
+    for _, name in ipairs(live) do
         root:CreateRadio(name,
-            function() return name == (SlerneNotesViewer.GetActiveCanvas and SlerneNotesViewer.GetActiveCanvas()) end,
+            function() return isActive(name) end,
             function() SlerneNotesViewer.SetActiveCanvas(name) end)
+    end
+
+    if #archived > 0 then
+        local aMenu = root:CreateButton("Archive")
+        for _, name in ipairs(archived) do
+            aMenu:CreateRadio(name,
+                function() return isActive(name) end,
+                function() SlerneNotesViewer.SetActiveCanvas(name) end)
+        end
     end
 end)
 SlerneNotesViewer.Skin.Dropdown(canvasDropdown)
@@ -88,6 +110,7 @@ end
 
 function SlerneNotesViewer.UpdateHeader()
     SlerneNotesViewer.RefreshCanvasDropdown()
+    if SlerneNotesViewer.RefreshArchiveButton then SlerneNotesViewer.RefreshArchiveButton() end
 end
 
 local exitBtn = CreateFrame("Button", nil, header, "UIPanelButtonTemplate")
@@ -129,9 +152,71 @@ confirmDelNo:SetText("Cancel")
 confirmDelNo:SetScript("OnClick", function() confirmDel:Hide() end)
 SlerneNotesViewer.Skin.Button(confirmDelNo)
 
+local confirmArch = CreateFrame("Frame", "SlerneNotesViewerConfirmArchive", frame, "BackdropTemplate")
+confirmArch:SetSize(360, 140)
+confirmArch:SetPoint("CENTER")
+confirmArch:SetFrameStrata("FULLSCREEN_DIALOG")
+confirmArch:SetFrameLevel(frame:GetFrameLevel() + 300)
+confirmArch:EnableMouse(true)
+SlerneNotesViewer.Skin.OuterFrame(confirmArch)
+if confirmArch.SetBackdropColor then confirmArch:SetBackdropColor(0.06, 0.04, 0.08, 1) end
+if confirmArch._snGrad then confirmArch._snGrad:SetColorTexture(0.06, 0.04, 0.08, 1) end
+confirmArch:Hide()
+
+local confirmArchTitle = confirmArch:CreateFontString(nil, "OVERLAY", "GameFontNormal")
+confirmArchTitle:SetPoint("TOP", 0, -22)
+SlerneNotesViewer.Skin.Title(confirmArchTitle)
+
+local confirmArchBody = confirmArch:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+confirmArchBody:SetPoint("TOP", confirmArchTitle, "BOTTOM", 0, -10)
+confirmArchBody:SetWidth(310)
+confirmArchBody:SetText("It moves into the Archive folder in the canvas dropdown. Nothing is deleted.")
+confirmArchBody:SetTextColor(0.8, 0.8, 0.8)
+
+local confirmArchYes = CreateFrame("Button", nil, confirmArch, "UIPanelButtonTemplate")
+confirmArchYes:SetSize(90, 26)
+confirmArchYes:SetPoint("BOTTOMLEFT", 55, 18)
+confirmArchYes:SetText("Archive")
+confirmArchYes:SetScript("OnClick", function()
+    SlerneNotesViewer.SetCanvasArchived(SlerneNotesViewer.GetActiveCanvas(), true)
+    SlerneNotesViewer.UpdateHeader()
+    confirmArch:Hide()
+end)
+SlerneNotesViewer.Skin.Button(confirmArchYes)
+
+local confirmArchNo = CreateFrame("Button", nil, confirmArch, "UIPanelButtonTemplate")
+confirmArchNo:SetSize(90, 26)
+confirmArchNo:SetPoint("BOTTOMRIGHT", -55, 18)
+confirmArchNo:SetText("Cancel")
+confirmArchNo:SetScript("OnClick", function() confirmArch:Hide() end)
+SlerneNotesViewer.Skin.Button(confirmArchNo)
+
+local archiveBtn = CreateFrame("Button", nil, header, "UIPanelButtonTemplate")
+archiveBtn:SetSize(100, 30)
+archiveBtn:SetPoint("LEFT", canvasDropdown, "RIGHT", 15, 0)
+archiveBtn:SetText("Archive")
+archiveBtn:SetScript("OnClick", function()
+    local active = SlerneNotesViewer.GetActiveCanvas()
+    if not active then return end
+    if SlerneNotesViewer.IsCanvasArchived(active) then
+        SlerneNotesViewer.SetCanvasArchived(active, false)
+        SlerneNotesViewer.UpdateHeader()
+    else
+        confirmArchTitle:SetText("Archive \"" .. active .. "\"?")
+        confirmArch:Show()
+    end
+end)
+SlerneNotesViewer.Skin.Button(archiveBtn)
+
+function SlerneNotesViewer.RefreshArchiveButton()
+    local active = SlerneNotesViewer.GetActiveCanvas()
+    archiveBtn:SetText((active and SlerneNotesViewer.IsCanvasArchived(active)) and "Unarchive" or "Archive")
+end
+SlerneNotesViewer.RefreshArchiveButton()
+
 local delBtn = CreateFrame("Button", nil, header, "UIPanelButtonTemplate")
 delBtn:SetSize(120, 30)
-delBtn:SetPoint("LEFT", canvasDropdown, "RIGHT", 15, 0)
+delBtn:SetPoint("LEFT", archiveBtn, "RIGHT", 12, 0)
 delBtn:SetText("Delete Canvas")
 delBtn:SetScript("OnClick", function()
     local active = SlerneNotesViewer.GetActiveCanvas()

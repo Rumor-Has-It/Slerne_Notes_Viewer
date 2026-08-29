@@ -37,7 +37,8 @@ function SlerneNotesViewer.ParseImportString(str)
     for _, modStr in ipairs(modules) do
         if modStr and modStr ~= "" then
 
-            local modName, mType, mLen, mImg, mImgW, mImgH, mText, mLabels, mPlayers, mClasses, mRoles, mPosX, mPosY = strsplit(":", modStr)
+            local modName, mType, mLen, mImg, mImgW, mImgH, mText, mLabels, mPlayers, mClasses, mRoles, mPosX, mPosY,
+                  mFbRows, mFbCols, mFbFrames, mFbFps = strsplit(":", modStr)
             modName = Unescape(modName)
 
             local meta = {
@@ -46,6 +47,10 @@ function SlerneNotesViewer.ParseImportString(str)
                 imgH = tonumber(Unescape(mImgH)) or 300, text = Unescape(mText),
                 posX = tonumber(Unescape(mPosX)),
                 posY = tonumber(Unescape(mPosY)),
+                fbRows = tonumber(Unescape(mFbRows)),
+                fbCols = tonumber(Unescape(mFbCols)),
+                fbFrames = tonumber(Unescape(mFbFrames)),
+                fbFps = tonumber(Unescape(mFbFps)),
                 labels = {}
             }
 
@@ -200,6 +205,18 @@ end
 
 function SlerneNotesViewer.GetActiveCanvas()
     return SlerneNotesViewerDB and SlerneNotesViewerDB.activeCanvas
+end
+
+function SlerneNotesViewer.IsCanvasArchived(name)
+    name = name or SlerneNotesViewer.GetActiveCanvas()
+    local c = name and SlerneNotesViewer.GetCanvases()[name]
+    return (c and c.archived) and true or false
+end
+
+function SlerneNotesViewer.SetCanvasArchived(name, flag)
+    local c = name and SlerneNotesViewer.GetCanvases()[name]
+    if not c then return end
+    c.archived = flag and true or nil
 end
 
 local function ensureViewerPages(c)

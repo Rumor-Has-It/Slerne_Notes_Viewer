@@ -19,6 +19,63 @@ local function GetIconPath(iconName)
     return "Interface\\AddOns\\SlerneNotesViewer\\img\\icons\\" .. iconName .. ".tga"
 end
 
+local function GetFlipbookPath(name)
+    if not name or name == "" then return "" end
+    if string.find(name, "[\\/]") then
+        return "Interface\\AddOns\\SlerneNotesViewer\\img\\flipbooks\\base\\" .. name
+    end
+    return "Interface\\AddOns\\SlerneNotesViewer\\img\\flipbooks\\custom\\" .. name
+end
+
+local function FlipbookParams(meta)
+    local fb = SlerneNotesViewer.GetFlipbook and SlerneNotesViewer.GetFlipbook(meta.image) or nil
+    local rows   = tonumber(meta.fbRows)   or (fb and fb.rows)   or 1
+    local cols   = tonumber(meta.fbCols)   or (fb and fb.cols)   or 1
+    local frames = tonumber(meta.fbFrames) or (fb and fb.frames) or (rows * cols)
+    local fps    = tonumber(meta.fbFps)    or (fb and fb.fps)    or 10
+    local w = meta.imgW or (fb and fb.w) or 128
+    local h = meta.imgH or (fb and fb.h) or 128
+    return rows, cols, frames, fps, w, h
+end
+
+local function ApplyFlipbook(tex, file, rows, cols, frames, fps)
+    local key = table.concat({ file or "", rows, cols, frames, fps }, "|")
+    if tex._fbKey == key and tex._fbGroup then
+        if not tex._fbGroup:IsPlaying() and not tex._fbPaused then tex._fbGroup:Play() end
+        return
+    end
+    if tex._fbGroup then tex._fbGroup:Stop() end
+    tex:SetTexCoord(0, 1, 0, 1)
+    local ag = tex._fbGroup or tex:CreateAnimationGroup()
+    local anim = tex._fbAnim or ag:CreateAnimation("FlipBook")
+    anim:SetFlipBookRows(rows)
+    anim:SetFlipBookColumns(cols)
+    anim:SetFlipBookFrames(frames)
+    anim:SetDuration(frames / math.max(0.1, fps))
+    ag:SetLooping("REPEAT")
+    tex._fbGroup, tex._fbAnim, tex._fbKey, tex._fbPaused = ag, anim, key, false
+    ag:Play()
+end
+
+local function StopFlipbook(tex)
+    if tex._fbGroup then tex._fbGroup:Stop() end
+    tex._fbKey, tex._fbPaused = nil, false
+    tex:SetTexCoord(0, 1, 0, 1)
+end
+
+local function ToggleFlipbook(tex)
+    local ag = tex and tex._fbGroup
+    if not ag then return false end
+    if ag.IsPaused and ag:IsPaused() then
+        ag:Play(); tex._fbPaused = false
+    elseif ag:IsPlaying() then
+        ag:Pause(); tex._fbPaused = true
+    else
+        ag:Play(); tex._fbPaused = false
+    end
+    return tex._fbPaused
+end
+
 local measureFS
 local function MaxLineWidth(text)
     if not measureFS then
@@ -316,6 +373,44 @@ local function EnsureModuleElements(modFrame)
     modFrame.title:SetPoint("TOP", 0, -5)
     SlerneNotesViewer.Skin.Title(modFrame.title)
     modFrame.displayImage = modFrame:CreateTexture(nil, "ARTWORK")
+
+    modFrame.fbClick = CreateFrame("Button", nil, modFrame)
+    modFrame.fbClick:RegisterForClicks("LeftButtonUp")
+    modFrame.fbClick:RegisterForDrag("LeftButton")
+    modFrame.fbClick:Hide()
+    modFrame.fbClick:SetScript("OnDragStart", function(self)
+        local p = self:GetParent()
+        local h = p:GetScript("OnDragStart")
+        if h then h(p) end
+    end)
+    modFrame.fbClick:SetScript("OnDragStop", function(self)
+        local p = self:GetParent()
+        local h = p:GetScript("OnDragStop")
+        if h then h(p) end
+    end)
+    modFrame.fbClick:SetScript("OnClick", function(self)
+        local paused = ToggleFlipbook(self:GetParent().displayImage)
+        self.pauseIcon:SetShown(paused and true or false)
+    end)
+    modFrame.fbClick:SetScript("OnEnter", function(self)
+        GameTooltip:SetOwner(self, "ANCHOR_TOP")
+        GameTooltip:SetText("Click to pause or resume")
+        GameTooltip:Show()
+    end)
+    modFrame.fbClick:SetScript("OnLeave", function() GameTooltip:Hide() end)
+
+    local pauseIcon = CreateFrame("Frame", nil, modFrame.fbClick)
+    pauseIcon:SetSize(24, 24)
+    pauseIcon:SetPoint("TOPRIGHT", -5, -5)
+    pauseIcon:Hide()
+    local pbg = pauseIcon:CreateTexture(nil, "BACKGROUND")
+    pbg:SetAllPoints(); pbg:SetColorTexture(0, 0, 0, 0.55)
+    local bar1 = pauseIcon:CreateTexture(nil, "OVERLAY")
+    bar1:SetColorTexture(1, 1, 1, 0.9); bar1:SetSize(4, 13); bar1:SetPoint("CENTER", -4, 0)
+    local bar2 = pauseIcon:CreateTexture(nil, "OVERLAY")
+    bar2:SetColorTexture(1, 1, 1, 0.9); bar2:SetSize(4, 13); bar2:SetPoint("CENTER", 4, 0)
+    modFrame.fbClick.pauseIcon = pauseIcon
+
     modFrame.playerTexts = {}
     modFrame.listRows = {}
     modFrame.actionRows = {}
@@ -329,6 +424,10 @@ local function RenderModuleContent(modFrame, modName, modData, myName)
     for _, row in ipairs(modFrame.listRows) do row:Hide(); if row.highlight then row.highlight:Hide() end end
     for _, row in ipairs(modFrame.actionRows) do row:Hide() end
     modFrame.displayImage:Hide()
+    if modFrame.fbClick then modFrame.fbClick:Hide() end
+    if modFrame.displayImage._fbGroup and meta.type ~= "Flipbook" then
+        StopFlipbook(modFrame.displayImage)
+    end
     if modFrame.textFS then modFrame.textFS:Hide() end
 
     modFrame.title:SetText(modName)
@@ -515,6 +614,24 @@ local function RenderModuleContent(modFrame, modName, modData, myName)
                 row:Show()
             end
         end
+
+    elseif meta.type == "Flipbook" then
+
+        local rows, cols, frames, fps, imgW, imgH = FlipbookParams(meta)
+
+        modFrame.displayImage:SetTexture(GetFlipbookPath(meta.image))
+        modFrame.displayImage:SetSize(imgW, imgH)
+        modFrame.displayImage:ClearAllPoints()
+        modFrame.displayImage:SetPoint("TOP", modFrame, "TOP", 0, -30)
+        modFrame.displayImage:Show()
+        ApplyFlipbook(modFrame.displayImage, meta.image, rows, cols, frames, fps)
+
+        modFrame.fbClick:ClearAllPoints()
+        modFrame.fbClick:SetAllPoints(modFrame.displayImage)
+        modFrame.fbClick.pauseIcon:SetShown(modFrame.displayImage._fbPaused and true or false)
+        modFrame.fbClick:Show()
+
+        modFrame:SetSize(math.max(imgW + 30, titleWidth), math.max(40, imgH + 50))
 
     elseif meta.type == "Action List" then
 

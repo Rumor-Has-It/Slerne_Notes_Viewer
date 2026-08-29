@@ -2,9 +2,9 @@
 ## Title: Slerne Notes Viewer
 ## Notes: View exported raid assignments sent from Slerne Notes
 ## Author: Slerne
-## Version: 1.0.0
+## Version: 1.1.0
 ## X-License: MIT
-## X-Credits: Custom art by Tado (instagram.com/tadogram). Secret easter egg art by Taco, Arena Maps & Boss/Add Icons by Ekto from Raidplan.io.
+## X-Credits: Custom art by Tado (instagram.com/tadogram). Secret easter egg art by Taco.
 ## IconTexture: Interface\AddOns\SlerneNotesViewer\img\theme\LogoMinimap
 ## SavedVariables: SlerneNotesViewerDB
 
@@ -13,6 +13,7 @@ libs\CallbackHandler-1.0\CallbackHandler-1.0.lua
 libs\LibDataBroker-1.1\LibDataBroker-1.1.lua
 libs\LibDBIcon-1.0\LibDBIcon-1.0.lua
 Core.lua
+data\Flipbooks.lua
 ui\Skin.lua
 ui\Main.lua
 ui\Renderer.lua
