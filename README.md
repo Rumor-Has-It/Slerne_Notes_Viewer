@@ -24,6 +24,7 @@ own name highlighted.
 
 - Draw on the plan with the pencil. Your strokes are private, saved per page, and never sent to anyone.
 - Press **E** on any module to pop it out as a movable, resizable window you can keep on screen mid-fight.
+- Press **C** on a Text Block to open its text ready to copy with Ctrl+C.
 - Click an animated Flipbook module to pause or resume it.
 - Archive canvases you are done with. They move into an Archive folder in the canvas dropdown.
 

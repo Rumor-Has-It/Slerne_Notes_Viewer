@@ -365,6 +365,63 @@ local function CollectRegionDrawings(rect)
     return out
 end
 
+local copyPopup
+local function ShowCopyPopup(title, text)
+    if not copyPopup then
+        local f = CreateFrame("Frame", "SlerneNotesViewerCopyPopup", UIParent, "BackdropTemplate")
+        f:Hide()
+        f:SetSize(470, 320)
+        f:SetPoint("CENTER")
+        f:SetFrameStrata("FULLSCREEN_DIALOG")
+        f:SetFrameLevel(700)
+        f:EnableMouse(true)
+        f:SetMovable(true)
+        f:RegisterForDrag("LeftButton")
+        f:SetScript("OnDragStart", f.StartMoving)
+        f:SetScript("OnDragStop", f.StopMovingOrSizing)
+        SlerneNotesViewer.Skin.OuterFrame(f)
+        if f.SetBackdropColor then f:SetBackdropColor(0.06, 0.04, 0.08, 1) end
+        if f._snGrad then f._snGrad:SetColorTexture(0.06, 0.04, 0.08, 1) end
+        tinsert(UISpecialFrames, "SlerneNotesViewerCopyPopup")
+
+        f.titleFS = f:CreateFontString(nil, "OVERLAY", "GameFontNormalLarge")
+        f.titleFS:SetPoint("TOP", 0, -16)
+        SlerneNotesViewer.Skin.Title(f.titleFS)
+
+        local hint = f:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+        hint:SetPoint("TOP", f.titleFS, "BOTTOM", 0, -6)
+        hint:SetText("Press Ctrl+C to copy, then Escape to close")
+        hint:SetTextColor(0.8, 0.8, 0.8)
+
+        local scroll = CreateFrame("ScrollFrame", "SlerneNotesViewerCopyScroll", f, "UIPanelScrollFrameTemplate")
+        scroll:SetPoint("TOPLEFT", 20, -66)
+        scroll:SetPoint("BOTTOMRIGHT", -36, 52)
+
+        local eb = CreateFrame("EditBox", nil, scroll)
+        eb:SetMultiLine(true)
+        eb:SetAutoFocus(false)
+        eb:SetFontObject(ChatFontNormal)
+        eb:SetWidth(400)
+        eb:SetScript("OnEscapePressed", function() f:Hide() end)
+        scroll:SetScrollChild(eb)
+        f.edit = eb
+
+        local closeBtn = CreateFrame("Button", nil, f, "UIPanelButtonTemplate")
+        closeBtn:SetSize(90, 26)
+        closeBtn:SetPoint("BOTTOM", 0, 16)
+        closeBtn:SetText("Close")
+        closeBtn:SetScript("OnClick", function() f:Hide() end)
+        SlerneNotesViewer.Skin.Button(closeBtn)
+
+        copyPopup = f
+    end
+    copyPopup.titleFS:SetText(title or "Copy text")
+    copyPopup.edit:SetText(text or "")
+    copyPopup:Show()
+    copyPopup.edit:SetFocus()
+    copyPopup.edit:HighlightText()
+end
+
 local function EnsureModuleElements(modFrame)
     if modFrame.title then return end
     SlerneNotesViewer.Skin.Module(modFrame)
@@ -411,6 +468,24 @@ local function EnsureModuleElements(modFrame)
     bar2:SetColorTexture(1, 1, 1, 0.9); bar2:SetSize(4, 13); bar2:SetPoint("CENTER", 4, 0)
     modFrame.fbClick.pauseIcon = pauseIcon
 
+    modFrame.copyBtn = CreateFrame("Button", nil, modFrame, "UIPanelButtonTemplate")
+    modFrame.copyBtn:SetSize(18, 18)
+    modFrame.copyBtn:SetPoint("TOPLEFT", 3, -3)
+    modFrame.copyBtn:SetText("C")
+    modFrame.copyBtn:SetFrameLevel(modFrame:GetFrameLevel() + 10)
+    modFrame.copyBtn:Hide()
+    SlerneNotesViewer.Skin.Button(modFrame.copyBtn)
+    modFrame.copyBtn:SetScript("OnClick", function(self)
+        ShowCopyPopup(self._snTitle, self._snText)
+    end)
+    modFrame.copyBtn:HookScript("OnEnter", function(self)
+        GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+        GameTooltip:SetText("Copy text")
+        GameTooltip:AddLine("Opens the text ready to copy with Ctrl+C.", 0.8, 0.8, 0.8)
+        GameTooltip:Show()
+    end)
+    modFrame.copyBtn:HookScript("OnLeave", function() GameTooltip:Hide() end)
+
     modFrame.playerTexts = {}
     modFrame.listRows = {}
     modFrame.actionRows = {}
@@ -425,6 +500,7 @@ local function RenderModuleContent(modFrame, modName, modData, myName)
     for _, row in ipairs(modFrame.actionRows) do row:Hide() end
     modFrame.displayImage:Hide()
     if modFrame.fbClick then modFrame.fbClick:Hide() end
+    if modFrame.copyBtn then modFrame.copyBtn:Hide() end
     if modFrame.displayImage._fbGroup and meta.type ~= "Flipbook" then
         StopFlipbook(modFrame.displayImage)
     end
@@ -721,6 +797,10 @@ local function RenderModuleContent(modFrame, modName, modData, myName)
         modFrame.textFS:Show()
         local h = modFrame.textFS:GetStringHeight() or 0
         modFrame:SetSize(math.max(titleWidth, boxW + 30), math.max(70, h + 45))
+
+        modFrame.copyBtn._snTitle = modName
+        modFrame.copyBtn._snText = meta.text or ""
+        modFrame.copyBtn:Show()
     end
 end
 
